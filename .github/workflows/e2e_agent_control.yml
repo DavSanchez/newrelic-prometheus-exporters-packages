@@ -3,6 +3,10 @@ name: e2e Agent Control
 # Checks that the nri-mongodb3 package and its Agent Control agent type work together by deploying them
 # in a real Agent Control. See https://github.com/newrelic/newrelic-agent-control/pull/2998
 on:
+  # TODO: remove, temporary trigger to run the e2e from the development branch
+  push:
+    branches:
+      - feat/agent-control-mongodb3
   workflow_dispatch:
     inputs:
       agent_control_version:
