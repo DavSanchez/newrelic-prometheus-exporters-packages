@@ -4,10 +4,6 @@ name: e2e Agent Control
 # real Agent Control. The exporter needs exporters/<exporter>/.fleetControl and exporters/<exporter>/e2e/agent-control.yml.
 # See https://github.com/newrelic/newrelic-agent-control/pull/2998
 on:
-  # TODO: remove, temporary trigger to run the e2e from the development branch
-  push:
-    branches:
-      - feat/agent-control-mongodb3
   workflow_dispatch:
     inputs:
       exporter:
@@ -26,7 +22,7 @@ permissions:
 
 env:
   GORELEASER_VERSION: 'v1.13.1'
-  EXPORTER: ${{ inputs.exporter || 'mongodb3' }}
+  EXPORTER: ${{ inputs.exporter }}
 
 jobs:
   e2e-agent-control:
