@@ -48,7 +48,7 @@ jobs:
       # TODO: pin to a released ref once the action is merged
       - uses: newrelic/newrelic-agent-control/.github/actions/test-ohi-agent@gsanchez/feat/e2e-action
         with:
-          agent-type-file: .fleetControl/agentControl/linux.yml
+          agent-type-file: exporters/mongodb3/.fleetControl/agentControl/linux.yml
           package-file: nri-mongodb3.tar.gz
           config-file: exporters/mongodb3/e2e/agent-control-config.yml
           nrql-assertion: "SELECT count(mongodb_dbstats_ok) FROM Metric WHERE `test.id` = '{{test_id}}'"
