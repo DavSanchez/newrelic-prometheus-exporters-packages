@@ -1,7 +1,8 @@
 name: e2e Agent Control
 
-# Checks that the nri-mongodb3 package and its Agent Control agent type work together by deploying them
-# in a real Agent Control. See https://github.com/newrelic/newrelic-agent-control/pull/2998
+# Checks that the package of an exporter and its Agent Control agent type work together by deploying them in a
+# real Agent Control. The exporter needs exporters/<exporter>/.fleetControl and exporters/<exporter>/e2e/agent-control.yml.
+# See https://github.com/newrelic/newrelic-agent-control/pull/2998
 on:
   # TODO: remove, temporary trigger to run the e2e from the development branch
   push:
@@ -9,6 +10,11 @@ on:
       - feat/agent-control-mongodb3
   workflow_dispatch:
     inputs:
+      exporter:
+        description: 'Name of the exporter to test'
+        required: false
+        default: mongodb3
+        type: string
       agent_control_version:
         description: 'Agent Control version to install (empty uses the install recipe default)'
         required: false
@@ -20,10 +26,11 @@ permissions:
 
 env:
   GORELEASER_VERSION: 'v1.13.1'
+  EXPORTER: ${{ inputs.exporter || 'mongodb3' }}
 
 jobs:
   e2e-agent-control:
-    name: Agent Control e2e for mongodb3
+    name: Agent Control e2e
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,23 +42,33 @@ jobs:
         with:
           version: ${{ env.GORELEASER_VERSION }}
           install-only: true
-      - name: Build nri-mongodb3 and mongodb3-exporter
-        run: make build-mongodb3
+      - name: Build the exporter
+        run: make build-${EXPORTER}
       - name: Create the package
         # Both binaries are placed at the root of the archive, the agent type reads them from there.
         run: |
-          tar czf nri-mongodb3.tar.gz \
-            -C exporters/mongodb3/target/bin/linux_amd64 nri-mongodb3 mongodb3-exporter
-      - name: Start MongoDB
-        working-directory: exporters/mongodb3/e2e
-        run: docker compose -f docker-compose-standalone-v7.yml up -d
+          tar czf "${EXPORTER}.tar.gz" \
+            -C "exporters/${EXPORTER}/target/bin/linux_amd64" "nri-${EXPORTER}" "${EXPORTER}-exporter"
+      - name: Read the e2e definition of the exporter
+        id: e2e
+        working-directory: exporters/${{ env.EXPORTER }}/e2e
+        run: |
+          {
+            echo "compose_file=$(yq e '.compose_file // ""' agent-control.yml)"
+            echo "config_file=exporters/${EXPORTER}/e2e/$(yq e '.config_file' agent-control.yml)"
+            echo "nrql_assertion=$(yq e '.nrql_assertion' agent-control.yml)"
+          } >> "${GITHUB_OUTPUT}"
+      - name: Start the system to monitor
+        if: steps.e2e.outputs.compose_file != ''
+        working-directory: exporters/${{ env.EXPORTER }}/e2e
+        run: docker compose -f "${{ steps.e2e.outputs.compose_file }}" up -d
       # TODO: pin to a released ref once the action is merged
       - uses: newrelic/newrelic-agent-control/.github/actions/test-ohi-agent@gsanchez/feat/e2e-action
         with:
-          agent-type-file: exporters/mongodb3/.fleetControl/agentControl/linux.yml
-          package-file: nri-mongodb3.tar.gz
-          config-file: exporters/mongodb3/e2e/agent-control-config.yml
-          nrql-assertion: "SELECT count(mongodb_dbstats_ok) FROM Metric WHERE `test.id` = '{{test_id}}'"
+          agent-type-file: exporters/${{ env.EXPORTER }}/.fleetControl/agentControl/linux.yml
+          package-file: ${{ env.EXPORTER }}.tar.gz
+          config-file: ${{ steps.e2e.outputs.config_file }}
+          nrql-assertion: ${{ steps.e2e.outputs.nrql_assertion }}
           nr-license-key: ${{ secrets.COREINT_E2E_LICENSE_KEY }}
           nr-api-key: ${{ secrets.COREINT_E2E_API_KEY }}
           nr-account-id: ${{ secrets.COREINT_E2E_ACCOUNT_ID }}
